@@ -1,0 +1,22 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "**Version 1.0 | Last Updated: January 2025**",
+  "main": "eslint.config.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/node": "^24.0.7",
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}
