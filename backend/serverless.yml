@@ -1,0 +1,34 @@
+service: yield-cycle-backend
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  environment:
+    NODE_ENV: ${self:provider.stage}
+    STAGE: ${self:provider.stage}
+
+plugins:
+  - serverless-offline
+  - serverless-dotenv-plugin
+
+functions:
+  api:
+    handler: src/lambda/api.handler
+    events:
+      - http:
+          path: /{proxy+}
+          method: ANY
+          cors: true
+    timeout: 30
+    memorySize: 1024
+
+  scheduler:
+    handler: src/lambda/scheduler.handler
+    events:
+      - schedule: cron(0 0 1 * ? *)
+    timeout: 300
+    memorySize: 2048
