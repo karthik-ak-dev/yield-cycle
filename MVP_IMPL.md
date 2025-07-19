@@ -3,6 +3,10 @@
 ## Project Overview
 Simple MVP for a cryptocurrency investment platform with MLM features, single $1000 USDT deposit per user, 60-month returns, and 5-level commission structure.
 
+**Important**: All earnings, commissions, and rewards are **web2 database records only**. No blockchain transactions occur except for:
+1. **Deposit**: User deposits $1000 USDT to generated BSC address
+2. **Withdrawal**: Platform transfers accumulated earnings from company wallet to user wallet
+
 ## Project Structure
 
 ### Backend Structure (`/backend`)
@@ -29,8 +33,9 @@ backend/
 │   │   ├── WalletService.ts    # HD wallet generation and management
 │   │   ├── BlockchainService.ts # BSC transaction validation
 │   │   ├── CommissionService.ts # 5-level commission calculations
-│   │   ├── EarningsService.ts  # Monthly earnings distribution
+│   │   ├── EarningsService.ts  # Monthly earnings record creation
 │   │   ├── RankService.ts      # Rank progression and rewards
+│   │   ├── WithdrawalService.ts # Withdrawal processing and transfers
 │   │   └── ReferralService.ts  # Simple referral code management
 │   ├── controllers/
 │   │   ├── AuthController.ts   # Authentication endpoints
@@ -200,6 +205,22 @@ interface ReferralTree {
 }
 ```
 
+### 8. Withdrawals Table
+```typescript
+interface Withdrawal {
+  withdrawalId: string;     // Primary Key
+  userId: string;           // User making withdrawal
+  amount: number;           // Withdrawal amount
+  feeAmount: number;        // Fee charged (5%)
+  netAmount: number;        // Amount after fee
+  toAddress: string;        // User's wallet address
+  transactionHash?: string; // Blockchain transaction hash
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  requestedAt: string;
+  processedAt?: string;
+}
+```
+
 ## Core Business Logic Implementation
 
 ### 1. Authentication Service (`AuthService.ts`)
@@ -239,8 +260,8 @@ class DepositService {
 ### 3. Commission Service (`CommissionService.ts`)
 ```typescript
 class CommissionService {
-  // Calculate and distribute 5-level commissions
-  async distributeCommissions(newUserId: string, depositAmount: number): Promise<void>
+  // Calculate and create 5-level commission records (database only)
+  async createCommissionRecords(newUserId: string, depositAmount: number): Promise<void>
   
   // Get user's upline chain (5 levels)
   private async getUplineChain(userId: string): Promise<string[]>
@@ -256,13 +277,13 @@ class CommissionService {
 ### 4. Earnings Service (`EarningsService.ts`)
 ```typescript
 class EarningsService {
-  // Distribute monthly $50 to all active users
-  async distributeMonthlyEarnings(): Promise<void>
+  // Create monthly $50 earning records for all active users (database only)
+  async createMonthlyEarningRecords(): Promise<void>
   
   // Check if user is eligible for monthly earnings
   private async isEligibleForEarnings(userId: string): Promise<boolean>
   
-  // Create monthly earning record
+  // Create monthly earning record in database
   private async createMonthlyEarning(userId: string, month: string): Promise<void>
 }
 ```
@@ -301,14 +322,28 @@ class WalletService {
 ### 7. Blockchain Service (`BlockchainService.ts`)
 ```typescript
 class BlockchainService {
-  // Check USDT transactions for specific address
+  // Check USDT transactions for deposit address (deposit validation only)
   async checkUSDTTransactions(address: string): Promise<Transaction[]>
   
   // Validate transaction has 12+ confirmations
   async validateTransactionConfirmations(txHash: string): Promise<boolean>
   
-  // Get USDT balance for address
-  async getUSDTBalance(address: string): Promise<number>
+  // Transfer USDT from company wallet to user wallet (withdrawal only)
+  async transferUSDT(toAddress: string, amount: number): Promise<string>
+}
+```
+
+### 8. Withdrawal Service (`WithdrawalService.ts`)
+```typescript
+class WithdrawalService {
+  // Calculate total available balance for withdrawal
+  async calculateAvailableBalance(userId: string): Promise<number>
+  
+  // Process withdrawal request and transfer funds
+  async processWithdrawal(userId: string, amount: number): Promise<string>
+  
+  // Validate withdrawal eligibility and limits
+  private async validateWithdrawal(userId: string, amount: number): Promise<boolean>
 }
 ```
 
@@ -353,29 +388,34 @@ export const SYSTEM_CONSTANTS = {
 ## API Endpoints
 
 ### Authentication Routes
-- `POST /auth/register` - User registration
-- `POST /auth/login` - User login
+- `POST /api/v1/auth/register` - User registration with email/password
+- `POST /api/v1/auth/login` - User login
 
 ### Deposit Routes
-- `GET /deposit/address` - Get user's deposit address
-- `POST /deposit/sync` - Manual deposit sync
+- `GET /api/v1/deposit/address` - Get user's unique BSC deposit address
+- `POST /api/v1/deposit/sync` - Manual deposit sync from blockchain
 
 ### Dashboard Routes
-- `GET /dashboard/stats` - Get user dashboard data
+- `GET /api/v1/dashboard` - Get complete user dashboard data
+
+### Withdrawal Routes
+- `POST /api/v1/withdrawal/request` - Request withdrawal
+- `GET /api/v1/withdrawal/status` - Get withdrawal status
 
 ## Frontend Components Logic
 
 ### Dashboard Component (`Dashboard.tsx`)
 ```typescript
-// Display only required data points:
-// - Deposit status and amount
-// - Team member count
-// - Team volume
-// - Monthly earnings total
-// - Commission earnings total
-// - MFA bonus total
-// - Achievement rewards total
-// - Current rank
+// Display calculated totals from database records:
+// - Deposit status and amount ($1000 if confirmed)
+// - Team member count (from referral tree)
+// - Team volume (sum of team deposits)
+// - Total monthly earnings ($50 × months eligible)
+// - Total commission earnings (sum from commission records)
+// - Total MFA bonuses (sum from achievement records)
+// - Total achievement rewards (sum from achievement records)
+// - Current rank (if any achieved)
+// - Available withdrawal balance (sum of all above)
 ```
 
 ### Deposit Component (`Deposit.tsx`)
@@ -392,15 +432,15 @@ export const SYSTEM_CONSTANTS = {
 ### Monthly Distribution Job (`jobs/monthlyDistribution.ts`)
 ```typescript
 // Run on 1st of every month
-// Distribute $50 to all eligible users
-// Update monthly earning records
+// Create $50 earning records for all eligible users (database only)
+// No actual fund transfers - just record creation
 ```
 
 ### Commission Processor Job (`jobs/commissionProcessor.ts`)
 ```typescript
-// Process pending commissions
-// Update commission status
-// Handle commission distribution
+// Create commission records when new deposits are confirmed
+// Calculate upline commissions and store in database
+// No actual fund transfers - just record creation
 ```
 
 ### Rank Calculator Job (`jobs/rankCalculator.ts`)
